@@ -1,0 +1,27 @@
+
+M
+java:S1128"0Remove this unused import 'java.nio.file.Paths'.(áè°¯8ŒØ­ˆ/
+R
+java:S1128"0Remove this unused import 'java.io.IOException'.(ªº»Úıÿÿÿÿ8¶àˆ/
+F
+java:S1128")Remove this unused import 'java.io.File'.(†Ğ¥Å8ŒØ­ˆ/
+J
+java:S3740M"/Provide the parametrized type for this generic.(„ëºŒûÿÿÿÿ
+Q
+java:S1128"5Remove this unused import 'java.io.RandomAccessFile'.(‰Œ)8¨ÌÈˆ/
+G
+java:S1172a"*Remove this unused method parameter "msg".(Ôğ¨¹8ú‰åç‡/
+M
+java:S1128"0Remove this unused import 'java.nio.file.Files'.(‚ƒü8ŒØ­ˆ/
+T
+java:S1128"2Remove this unused import 'org.yangxin.BootStrap'.(÷ÊÇ¼ıÿÿÿÿ8ŒØ­ˆ/
+U
+java:S1128	"8Remove this unused import 'org.yangxin.until.ByteUtils'.(üÚÈ‘8äÜ·ˆ/
+J
+java:S3740"/Provide the parametrized type for this generic.(¶Ëšşÿÿÿÿ
+J
+java:S3740Q"/Provide the parametrized type for this generic.(†²åùùÿÿÿÿ
+X
+java:S1128"6Remove this unused import 'org.yangxin.http.Constant'.(±ÀÔšûÿÿÿÿ8Àùïˆ/
+
+java:S1186U"€Add a nested comment explaining why this method is empty, throw an UnsupportedOperationException or complete the implementation.(ã®¸Â8¶àˆ/

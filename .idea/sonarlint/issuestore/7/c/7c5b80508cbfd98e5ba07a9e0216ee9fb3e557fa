@@ -1,0 +1,26 @@
+
+V	java:S125I"<This block of commented-out lines of code should be removed.(íÍ‚µşÿÿÿÿ
+>	java:S108T")Either remove or fill this block of code.(Úîø›
+Y	java:S125¦"<This block of commented-out lines of code should be removed.(´ÓÎØ8‚¬µˆ/
+U
+java:S1128"8Remove this unused import 'org.yangxin.until.ByteUtils'.(üÚÈ‘8úæ ‘ˆ/
+E
+java:S3740*"/Provide the parametrized type for this generic.(‹—´ô
+J
+java:S3740'"/Provide the parametrized type for this generic.(ûÓÒøÿÿÿÿÿ
+>
+java:S1148e"#Use a logger to log this exception.(€ÉÔ…ıÿÿÿÿ
+I
+java:S1068$",Remove this unused "executor" private field.(äü¥ 8åßñˆ/
+F
+java:S1148ˆ"#Use a logger to log this exception.(€ÉÔ…ıÿÿÿÿ8¨¡·ˆ/
+?
+java:S1148Ë"#Use a logger to log this exception.(€ÉÔ…ıÿÿÿÿ
+=
+java:S2189`""Add an end condition to this loop.(˜ïˆÿÿÿÿÿ
+>
+java:S1148S"#Use a logger to log this exception.(€ÉÔ…ıÿÿÿÿ
+l
+java:S2095•"NUse try-with-resources or close this "RandomAccessFile" in a "finally" clause.(ĞÏãÜ8ÍøÈˆ/
+E
+java:S1148<"#Use a logger to log this exception.(€ÉÔ…ıÿÿÿÿ8¹¯ûˆ/
