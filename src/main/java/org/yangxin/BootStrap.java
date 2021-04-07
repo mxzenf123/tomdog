@@ -10,7 +10,7 @@ public class BootStrap {
     private NioEndPoint endPoint;
     private int port;
 
-    public BootStrap(String r, int port){
+    public BootStrap(String r, int port) throws IOException{
         root = r;
         this.port = port;
         endPoint = new NioEndPoint();

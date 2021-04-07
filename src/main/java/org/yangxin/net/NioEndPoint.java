@@ -12,6 +12,7 @@ import org.yangxin.until.ByteUtils;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.RandomAccessFile;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
@@ -32,15 +33,21 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public class NioEndPoint {
 
+    private byte[] page404;
     private ServerSocketChannel serverSocketChannel;
     private Executor executor;
     private Poller[] pollers;
     private AtomicInteger pollerRotater = new AtomicInteger(0);
     private PooledObject<SocketEvent> pooledObject = new PooledObject(SocketEvent.class);
 
-    public NioEndPoint(){
+    public NioEndPoint() throws IOException{
         executor = new ThreadPoolExecutor(1, Constant.COMPUTOR_CORE, 600, TimeUnit.SECONDS, new LinkedBlockingQueue(), Executors.defaultThreadFactory(),new ThreadPoolExecutor.AbortPolicy());
         pollers = new Poller[Constant.COMPUTOR_CORE*2];
+        InputStream is = Thread.currentThread().getContextClassLoader().getResourceAsStream("404/404.html");
+        page404 = new byte[is.available()];
+        if ( -1 == is.read(page404)) {
+            throw new IOException("读取404页面报错");
+        }
     }
 
     public void bind(int port) throws IOException {
@@ -143,9 +150,15 @@ public class NioEndPoint {
         private void writeFile(SocketEvent socketEvent) throws IOException {
             HttpResponse response = socketEvent.getResponse();
             int size = 0;
+            byte[] b = new byte[8 * 1024];
+            if ( HttpStatus.NotFound == response.getHttpStatus()) {
+                System.out.println(new String(page404));
+                response.getOutputStream().write(page404, 0, page404.length);
+            }
+
             if (response.getHttpStatus() == HttpStatus.OK) {
                 RandomAccessFile raf = new RandomAccessFile(socketEvent.getPath().toFile(), "r");
-                byte[] b = new byte[8 * 1024];
+
                 while( -1 !=(size=raf.read(b)) ) {
                     response.getOutputStream().write(b, 0, size);
                 }
@@ -156,9 +169,12 @@ public class NioEndPoint {
             HttpResponse response = socketEvent.getResponse();
             Path path = Paths.get(BootStrap.root+socketEvent.getRequest().getRequestUri().replace('/', File.separatorChar));
             socketEvent.setPath(path);
+            long ContentLength;
             if (Files.exists(path)){
                 response.setHttpStatus(HttpStatus.OK);
+                ContentLength = path.toFile().length();
             } else {
+                ContentLength = page404.length;
                 socketEvent.setBadResponse(HttpStatus.NotFound, "请求资源不存在");
             }
 //            preparedResponseLine();
@@ -169,8 +185,8 @@ public class NioEndPoint {
             response.getOutputStream().write(Constant.CR);
             response.getOutputStream().write(Constant.LF);
             response.addHeader("X-Server", "tomdog 1.0");
-            response.addHeader("Content-Type", "text/html");
-            response.addHeader("Content-Length", path.toFile().length()+"");
+//            response.addHeader("Content-Type", "text/html");
+            response.addHeader("Content-Length", String.valueOf(ContentLength));
             response.getOutputStream().write(Constant.CR);
             response.getOutputStream().write(Constant.LF);
             response.getOutputStream().write(Constant.CR);

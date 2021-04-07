@@ -12,6 +12,7 @@ public class MainApp
     {
 
         if (null == args || args.length < 2) {
+            System.exit(-1);
             throw new RuntimeException("至少输入根路径和端口");
         }
         BootStrap bootStrap = new BootStrap(args[0], Integer.valueOf(args[1]));
