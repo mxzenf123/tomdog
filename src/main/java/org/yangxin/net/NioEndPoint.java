@@ -10,6 +10,7 @@ import org.yangxin.io.DogOutputStream;
 import org.yangxin.pool.PooledObject;
 import org.yangxin.until.ByteUtils;
 
+import javax.net.ssl.HttpsURLConnection;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -23,7 +24,9 @@ import java.nio.channels.SocketChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.HashMap;
 import java.util.Iterator;
+import java.util.Map;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -34,6 +37,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class NioEndPoint {
 
     private byte[] page404;
+    private byte[] pageUpload;
+    private Map<String, byte[]> resourcesMap = new HashMap<>();
     private ServerSocketChannel serverSocketChannel;
     private Executor executor;
     private Poller[] pollers;
@@ -43,11 +48,18 @@ public class NioEndPoint {
     public NioEndPoint() throws IOException{
         executor = new ThreadPoolExecutor(1, Constant.COMPUTOR_CORE, 600, TimeUnit.SECONDS, new LinkedBlockingQueue(), Executors.defaultThreadFactory(),new ThreadPoolExecutor.AbortPolicy());
         pollers = new Poller[Constant.COMPUTOR_CORE*2];
-        InputStream is = Thread.currentThread().getContextClassLoader().getResourceAsStream("404/404.html");
+        InputStream is = Thread.currentThread().getContextClassLoader().getResourceAsStream("html/404.html");
         page404 = new byte[is.available()];
         if ( -1 == is.read(page404)) {
             throw new IOException("读取404页面报错");
         }
+        resourcesMap.put("/404.html", page404);
+        is = Thread.currentThread().getContextClassLoader().getResourceAsStream("html/upload.html");
+        pageUpload = new byte[is.available()];
+        if ( -1 == is.read(pageUpload)) {
+            throw new IOException("读取404页面报错");
+        }
+        resourcesMap.put("/upload.html", pageUpload);
     }
 
     public void bind(int port) throws IOException {
@@ -152,8 +164,13 @@ public class NioEndPoint {
             int size = 0;
             byte[] b = new byte[8 * 1024];
             if ( HttpStatus.NotFound == response.getHttpStatus()) {
-                System.out.println(new String(page404));
+//                System.out.println(new String(page404));
                 response.getOutputStream().write(page404, 0, page404.length);
+            }
+
+            if (HttpStatus.RESOURCES == response.getHttpStatus()) {
+                String resourcesUrl = getResourcesUrl(socketEvent.getRequest().getRequestUri());
+                response.getOutputStream().write(resourcesMap.get(resourcesUrl), 0, resourcesMap.get(resourcesUrl).length);
             }
 
             if (response.getHttpStatus() == HttpStatus.OK) {
@@ -165,15 +182,30 @@ public class NioEndPoint {
             }
         }
 
+        private String getResourcesUrl(String url){
+            return resourcesMap.keySet().stream().filter( s -> {
+                return url.endsWith(s);
+            }).findFirst().get();
+        }
+
         private void prepareResponse(SocketEvent socketEvent) throws IOException {
             HttpResponse response = socketEvent.getResponse();
-            Path path = Paths.get(BootStrap.root+socketEvent.getRequest().getRequestUri().replace('/', File.separatorChar));
+            String url = socketEvent.getRequest().getRequestUri();
+            Path path = Paths.get(BootStrap.root+url.replace('/', File.separatorChar));
             socketEvent.setPath(path);
-            long ContentLength;
+            long ContentLength = 0;
             if (Files.exists(path)){
                 response.setHttpStatus(HttpStatus.OK);
                 ContentLength = path.toFile().length();
-            } else {
+            } else if(null!=url&&url.startsWith(Constant.DEFAULT_PATH)){
+                String resourcesUrl = getResourcesUrl(url);
+                if (null != resourcesUrl) {
+                    response.setHttpStatus(HttpStatus.RESOURCES);
+                    ContentLength = resourcesMap.get(resourcesUrl).length;
+                }
+
+            }
+            if ( 0==ContentLength ){
                 ContentLength = page404.length;
                 socketEvent.setBadResponse(HttpStatus.NotFound, "请求资源不存在");
             }
@@ -182,15 +214,12 @@ public class NioEndPoint {
             response.getOutputStream().write(response.getHttpStatus().getStatCode());
             response.getOutputStream().write(Constant.SP);
             response.getOutputStream().write(response.getHttpStatus().name().getBytes());
-            response.getOutputStream().write(Constant.CR);
-            response.getOutputStream().write(Constant.LF);
+            response.getOutputStream().write(Constant.CRLF);
             response.addHeader("X-Server", "tomdog 1.0");
 //            response.addHeader("Content-Type", "text/html");
             response.addHeader("Content-Length", String.valueOf(ContentLength));
-            response.getOutputStream().write(Constant.CR);
-            response.getOutputStream().write(Constant.LF);
-            response.getOutputStream().write(Constant.CR);
-            response.getOutputStream().write(Constant.LF);
+            response.getOutputStream().write(Constant.CRLF);
+            response.getOutputStream().write(Constant.CRLF);
 
         }
 

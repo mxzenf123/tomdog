@@ -9,12 +9,6 @@ public interface Constant {
     String DEFAULT_CHARSET = "UTF-8";
 
     String DEFAULT_PROTOCOL = "HTTP/1.1";
-
-    /**
-     * CRLF.
-     */
-    public static final String CRLF = "\r\n";
-
     /**
      * CR.
      */
@@ -25,8 +19,12 @@ public interface Constant {
      * LF.
      */
     public static final byte LF = (byte) '\n';
+    /**
+     * CRLF.
+     */
+    public static final byte[] CRLF = {CR,LF};
 
-
+    public static final String DEFAULT_PATH = "/tomdog";
     /**
      * SP.
      */

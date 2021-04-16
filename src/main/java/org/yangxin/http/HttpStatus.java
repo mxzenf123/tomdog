@@ -3,6 +3,7 @@ package org.yangxin.http;
 public enum HttpStatus {
 
     OK(200),
+    RESOURCES(209),
 
     MovePermanently(301),
 
