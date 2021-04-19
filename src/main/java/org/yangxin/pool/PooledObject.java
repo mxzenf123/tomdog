@@ -4,6 +4,7 @@ import org.yangxin.http.Constant;
 import org.yangxin.reflection.ObjectFactory;
 
 import java.util.concurrent.LinkedBlockingDeque;
+import java.util.concurrent.TimeUnit;
 
 public class PooledObject<T> {
 
@@ -30,13 +31,16 @@ public class PooledObject<T> {
 
     public PooledObject(Class<T> type){
 
-        this(Integer.MAX_VALUE>>>2, Constant.COMPUTOR_CORE*50, type);
+        this(Integer.MAX_VALUE>>>26, Constant.COMPUTOR_CORE*50, type);
     }
 
-    public <T> T borrowObject(){
+    public <T> T borrowObject() throws InterruptedException{
         Object o = null;
-        if (null == (o=pool.poll()) && pool.size() < capacity) {
+        if (pool.size() < capacity) {
             o = objectFactory.create(type);
+            pool.offer(o);
+        } else {
+            o=pool.poll(3, TimeUnit.SECONDS);
         }
         return (T)o;
     }
