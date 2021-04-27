@@ -8,13 +8,9 @@ import org.yangxin.http.HttpStatus;
 import org.yangxin.io.DogInputStream;
 import org.yangxin.io.DogOutputStream;
 import org.yangxin.pool.PooledObject;
-import org.yangxin.until.ByteUtils;
+import org.yangxin.until.KMPAlgorithm;
 
-import javax.net.ssl.HttpsURLConnection;
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.RandomAccessFile;
+import java.io.*;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
@@ -38,6 +34,7 @@ public class NioEndPoint {
 
     private byte[] page404;
     private byte[] pageUpload;
+    private byte[] success;
     private Map<String, byte[]> resourcesMap = new HashMap<>();
     private ServerSocketChannel serverSocketChannel;
     private Executor executor;
@@ -57,9 +54,16 @@ public class NioEndPoint {
         is = Thread.currentThread().getContextClassLoader().getResourceAsStream("html/upload.html");
         pageUpload = new byte[is.available()];
         if ( -1 == is.read(pageUpload)) {
-            throw new IOException("读取404页面报错");
+            throw new IOException("读取upload页面报错");
         }
         resourcesMap.put("/upload.html", pageUpload);
+
+        is = Thread.currentThread().getContextClassLoader().getResourceAsStream("html/doupload.html");
+        success = new byte[is.available()];
+        if ( -1 == is.read(success)) {
+            throw new IOException("读取upload页面报错");
+        }
+        resourcesMap.put("/doupload.html", success);
     }
 
     public void bind(int port) throws IOException {
@@ -90,10 +94,17 @@ public class NioEndPoint {
                 try {
                     SocketChannel socketChannel = serverSocketChannel.accept();
 //                    selector.wakeup();
-//                    System.out.println("http访问接入");
+                    System.out.println("http访问接入:" + socketChannel.getRemoteAddress() + "-"+(new java.util.Date(System.currentTimeMillis())));
                     socketChannel.configureBlocking(false);
                     SelectionKey key = socketChannel.register(getPoller0().getSelector(), SelectionKey.OP_READ);
-                    SocketEvent socketEvent = pooledObject.borrowObject();
+                    System.out.println("注册socketChannel等待读取：" + (new java.util.Date(System.currentTimeMillis())));
+                    SocketEvent socketEvent = null;
+                    try {
+                        socketEvent = pooledObject.borrowObject();
+                    } catch (InterruptedException ie) {
+                        ie.printStackTrace();
+                        // TODO 如果并发太大被中断返回繁忙页面
+                    }
                     socketEvent.setPooledObject(pooledObject);
                     socketEvent.recyle();
                     socketEvent.buildSocketChannel(socketChannel);
@@ -114,12 +125,15 @@ public class NioEndPoint {
 
             while (true) {
                 try {
-                    if (selector.select(10) > 0) {
+                    System.out.println("准备开始选择可处理的selectKey - " + (new java.util.Date(System.currentTimeMillis())));
+                    if (selector.select(1) > 0) {
+                        System.out.println("开始处理selectKey - " + (new java.util.Date(System.currentTimeMillis())));
                         Iterator<SelectionKey> it = selector.selectedKeys().iterator();
                         while (it.hasNext()) {
                             processKey(it.next());
                             it.remove();
                         }
+
                     }
                 } catch (IOException e) {
                     e.printStackTrace();
@@ -129,7 +143,7 @@ public class NioEndPoint {
 
         }
 
-        private void processKey(SelectionKey key) {
+        private void processKey(SelectionKey key) throws IOException {
 
             SocketEvent socketEvent = (SocketEvent)key.attachment();
             if (!key.isValid()){
@@ -137,6 +151,7 @@ public class NioEndPoint {
             }
             if ((key.readyOps() & SelectionKey.OP_READ)
                     == SelectionKey.OP_READ) {
+                System.out.println("<------解析请求------>" + (new java.util.Date(System.currentTimeMillis())));
                 parseHttpRequest(socketEvent);
                 key.interestOps(SelectionKey.OP_WRITE);
             }
@@ -144,11 +159,12 @@ public class NioEndPoint {
             if ((key.readyOps() & SelectionKey.OP_WRITE)
                     == SelectionKey.OP_WRITE) {
                 try {
+                    System.out.println("<------返回页面------>" + (new java.util.Date(System.currentTimeMillis())));
                     prepareResponse(socketEvent);
                     writeFile(socketEvent);
-                    socketEvent.getResponse().getOutputStream().write(Constant.CR);
-                    socketEvent.getResponse().getOutputStream().write(Constant.LF);
+                    socketEvent.getResponse().getOutputStream().write(Constant.CRLF);
                     socketEvent.getResponse().flush();
+                    System.out.println("<------请求完成------>" + (new java.util.Date(System.currentTimeMillis())));
                 } catch (IOException e) {
                     e.printStackTrace();
                 } finally {
@@ -160,8 +176,11 @@ public class NioEndPoint {
         }
 
         private void writeFile(SocketEvent socketEvent) throws IOException {
+            if (null != socketEvent.getBoundary()) {
+                return;
+            }
             HttpResponse response = socketEvent.getResponse();
-            int size = 0;
+
             byte[] b = new byte[8 * 1024];
             if ( HttpStatus.NotFound == response.getHttpStatus()) {
 //                System.out.println(new String(page404));
@@ -173,6 +192,7 @@ public class NioEndPoint {
                 response.getOutputStream().write(resourcesMap.get(resourcesUrl), 0, resourcesMap.get(resourcesUrl).length);
             }
 
+            int size = 0;
             if (response.getHttpStatus() == HttpStatus.OK) {
                 RandomAccessFile raf = new RandomAccessFile(socketEvent.getPath().toFile(), "r");
 
@@ -190,40 +210,48 @@ public class NioEndPoint {
 
         private void prepareResponse(SocketEvent socketEvent) throws IOException {
             HttpResponse response = socketEvent.getResponse();
+            if (null != socketEvent.getBoundary()) {
+                return;
+            }
             String url = socketEvent.getRequest().getRequestUri();
             Path path = Paths.get(BootStrap.root+url.replace('/', File.separatorChar));
             socketEvent.setPath(path);
-            long ContentLength = 0;
+            long contentLength = 0;
             if (Files.exists(path)){
                 response.setHttpStatus(HttpStatus.OK);
-                ContentLength = path.toFile().length();
+                contentLength = path.toFile().length();
             } else if(null!=url&&url.startsWith(Constant.DEFAULT_PATH)){
                 String resourcesUrl = getResourcesUrl(url);
                 if (null != resourcesUrl) {
                     response.setHttpStatus(HttpStatus.RESOURCES);
-                    ContentLength = resourcesMap.get(resourcesUrl).length;
+                    contentLength = resourcesMap.get(resourcesUrl).length;
                 }
 
             }
-            if ( 0==ContentLength ){
-                ContentLength = page404.length;
+
+            if ( 0==contentLength ){
+                contentLength = page404.length;
                 socketEvent.setBadResponse(HttpStatus.NotFound, "请求资源不存在");
             }
-//            preparedResponseLine();
+            preparedResponseLine(response, contentLength);
+        }
+
+        private void preparedResponseLine(HttpResponse response, long ContentLength) throws IOException {
             response.getOutputStream().write("HTTP/1.1 ".getBytes());
             response.getOutputStream().write(response.getHttpStatus().getStatCode());
             response.getOutputStream().write(Constant.SP);
             response.getOutputStream().write(response.getHttpStatus().name().getBytes());
             response.getOutputStream().write(Constant.CRLF);
             response.addHeader("X-Server", "tomdog 1.0");
-//            response.addHeader("Content-Type", "text/html");
-            response.addHeader("Content-Length", String.valueOf(ContentLength));
-            response.getOutputStream().write(Constant.CRLF);
-            response.getOutputStream().write(Constant.CRLF);
+            if (ContentLength > 0) {
+                response.addHeader("Content-Length", String.valueOf(ContentLength));
+            }
 
+            response.getOutputStream().write(Constant.CRLF);
+            response.getOutputStream().write(Constant.CRLF);
         }
 
-        private void parseHttpRequest(SocketEvent socketEvent) {
+        private void parseHttpRequest(SocketEvent socketEvent) throws IOException {
             HttpRequest request = new HttpRequest(new DogInputStream(socketEvent.getSocketChannel()));
             HttpResponse response = new HttpResponse(new DogOutputStream(socketEvent.getSocketChannel()));
             socketEvent.setRequest(request);
@@ -273,6 +301,118 @@ public class NioEndPoint {
                 offset += length;
                 length = 0;
             }
+
+            String header = request.getHeaders().get("Content-Type");
+            if (null != header && header.indexOf("multipart/form-data") > -1) {
+
+                parseMultipartData(request, socketEvent, header);
+            }
+        }
+
+        private void parseMultipartData(HttpRequest request, SocketEvent socketEvent, String header) throws IOException {
+            String[] strs = header.split(";");
+            int boundaryLen = 0;
+            String boundary = null;
+            int[] next = null;
+            for (int i = strs.length - 1; i >= 0; i--) {
+                //有multipart头，但是没有bondary？
+                if (null!=strs[i] && strs[i].trim().startsWith("boundary")) {
+                    boundary = strs[i].split("=")[1].trim().replaceAll("\"","");
+                    socketEvent.setBoundary(boundary);
+                    boundaryLen = boundary.length();
+                    next = KMPAlgorithm.kmpNext(boundary);
+                }
+            }
+
+            ByteBuffer byteBuffer = socketEvent.getByteBuffer();
+            byte preChr = 0;
+            byte chr = 0;
+            byte[] tmp = new byte[8 * 1024];
+            int length = 0;
+            int offset = 0;
+            int pos = 0;
+            int size = 0;
+            Map<String, String> headers = new HashMap<>(5);
+            String[] headerStr;
+
+            // 1，先解析boundary
+            while (Constant.LF != chr && Constant.CR != preChr) {
+                preChr = chr;
+                if (readChannelIfNecessary(byteBuffer, socketEvent) > 0) {
+                    chr = byteBuffer.get();
+                    tmp[pos++] = chr;
+                    length++;
+                }
+
+            }
+
+            // 2，解析Conent-*
+            pos = length = 0;
+            while (true) {
+                preChr = 0;
+                chr = 0;
+                while (Constant.LF != chr && Constant.CR != preChr) {
+                    preChr = chr;
+                    if (readChannelIfNecessary(byteBuffer, socketEvent) > 0) {
+                        chr = byteBuffer.get();
+                        tmp[pos++] = chr;
+                        length++;
+                    }
+
+                }
+                if (2 == length) {
+                    break;
+                }
+                headerStr = new String(tmp, offset, length).split(":");
+                headers.put(headerStr[0].trim(), headerStr[1].trim());
+                offset += length;
+                length = 0;
+            }
+
+            // 3，保存文件
+            String fileName = String.valueOf(System.currentTimeMillis());
+            String[] conentDispositionStr = headers.get("Content-Disposition").split(";");
+            for ( int i = conentDispositionStr.length - 1; i >= 0; i--) {
+                if (conentDispositionStr[i].trim().startsWith("filename")) {
+                    fileName = conentDispositionStr[i].split("=")[1].replaceAll("\"","");
+                }
+            }
+            try(FileOutputStream fos = new FileOutputStream(BootStrap.upload + File.separator + fileName)){
+                pos = 0;
+                while (true) {
+                    size = readChannelIfNecessary(byteBuffer, socketEvent);
+
+                    if ( size > 0) {
+                        chr = byteBuffer.get();
+                        tmp[pos++] = chr;
+                        if ( tmp.length ==  pos) {
+                            if ((offset=KMPAlgorithm.kmpSearch(tmp, boundary, next)) > -1) {
+                                fos.write(tmp, 0, offset);
+                                break;
+                            }
+                            fos.write(tmp, 0, tmp.length-boundaryLen);
+                            System.arraycopy(tmp,tmp.length-boundaryLen,tmp,0,boundaryLen);
+                            pos = boundaryLen;
+                        }
+                    } else {
+                        if ((offset=KMPAlgorithm.kmpSearch(tmp, boundary, next)) > -1) {
+                            fos.write(tmp, 0, offset);
+                            break;
+                        }
+                    }
+
+                }
+            }
+        }
+
+        private int readChannelIfNecessary(ByteBuffer byteBuffer, SocketEvent socketEvent) throws IOException {
+            if (!byteBuffer.hasRemaining()) {
+                byteBuffer.clear();
+                int size = socketEvent.getSocketChannel().read(byteBuffer);
+                byteBuffer.flip();
+                return size;
+            }
+            return byteBuffer.remaining();
         }
 
         public Selector getSelector() {

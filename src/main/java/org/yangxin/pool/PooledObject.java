@@ -2,7 +2,9 @@ package org.yangxin.pool;
 
 import org.yangxin.http.Constant;
 import org.yangxin.reflection.ObjectFactory;
+import org.yangxin.until.collections.SynchronizedQueue;
 
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.TimeUnit;
 
@@ -10,18 +12,19 @@ public class PooledObject<T> {
 
     private int capacity;
     private int initSize;
-    private LinkedBlockingDeque<Object> pool;
+    private SynchronizedQueue<Object> pool;
     private ObjectFactory objectFactory;
     private Class<T> type;
 
     public PooledObject(int capacity, int initSize, Class<T> type){
-        if ( 0 == capacity || capacity < initSize ) {
+        if ( 0 == capacity || (capacity==-1?Integer.MAX_VALUE:capacity) < initSize ) {
             throw new IllegalArgumentException("参数不合法");
         }
         this.capacity = capacity;
         this.initSize = initSize;
         this.type = type;
-        pool = new LinkedBlockingDeque<Object>(capacity);
+        pool = new SynchronizedQueue<Object>();
+
         objectFactory = new ObjectFactory();
         for (int i = 0; i < this.initSize; i++) {
             pool.offer(objectFactory.create(type));
@@ -31,17 +34,16 @@ public class PooledObject<T> {
 
     public PooledObject(Class<T> type){
 
-        this(Integer.MAX_VALUE>>>26, Constant.COMPUTOR_CORE*50, type);
+        this(-1, Constant.COMPUTOR_CORE, type);
     }
 
     public <T> T borrowObject() throws InterruptedException{
-        Object o = null;
-        if (pool.size() < capacity) {
+        Object o = pool.poll();
+        if ((-1 == capacity || pool.size() < capacity) && null == o) {
             o = objectFactory.create(type);
             pool.offer(o);
-        } else {
-            o=pool.poll(3, TimeUnit.SECONDS);
         }
+
         return (T)o;
     }
 

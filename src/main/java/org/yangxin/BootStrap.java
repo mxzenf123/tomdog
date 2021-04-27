@@ -7,11 +7,13 @@ import java.io.IOException;
 public class BootStrap {
 
     public static String root;
+    public static String upload;
     private NioEndPoint endPoint;
     private int port;
 
-    public BootStrap(String r, int port) throws IOException{
+    public BootStrap(String r, String u, int port) throws IOException{
         root = r;
+        upload = u;
         this.port = port;
         endPoint = new NioEndPoint();
     }

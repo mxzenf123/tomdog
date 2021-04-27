@@ -21,6 +21,7 @@ public class KMPAlgorithm {
                 //找到了 // j = 3 i
                 return i - j + 1;
             }
+
         }
 
         return -1;
@@ -51,6 +52,7 @@ public class KMPAlgorithm {
                 //找到了 // j = 3 i
                 return i - j + 1;
             }
+
         }
         return -1;
     }

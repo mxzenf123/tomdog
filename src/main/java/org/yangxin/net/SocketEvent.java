@@ -28,6 +28,7 @@ public class SocketEvent {
     private HttpResponse response;
     private ByteBuffer byteBuffer = ByteBuffer.allocate(8 * 1024);//8k
     private Path path;
+    private String boundary;
 
     public void recyle(){
         socketChannel = null;
@@ -35,6 +36,7 @@ public class SocketEvent {
         response = null;
         byteBuffer.clear();
         path = null;
+        boundary = null;
     }
 
     public SocketEvent buildSocketChannel(SocketChannel socketChannel){
@@ -84,6 +86,14 @@ public class SocketEvent {
 
     public void flush(){
 
+    }
+
+    public String getBoundary() {
+        return boundary;
+    }
+
+    public void setBoundary(String boundary) {
+        this.boundary = boundary;
     }
 
     public Path getPath() {
