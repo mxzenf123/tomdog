@@ -35,6 +35,7 @@ public class NioEndPoint {
     private byte[] page404;
     private byte[] pageUpload;
     private byte[] success;
+    private byte[] ico;
     private Map<String, byte[]> resourcesMap = new HashMap<>();
     private ServerSocketChannel serverSocketChannel;
     private Executor executor;
@@ -64,6 +65,13 @@ public class NioEndPoint {
             throw new IOException("读取upload页面报错");
         }
         resourcesMap.put("/doupload.html", success);
+
+        is = Thread.currentThread().getContextClassLoader().getResourceAsStream("tomdog.ico");
+        ico = new byte[is.available()];
+        if ( -1 == is.read(ico)) {
+            throw new IOException("读取upload页面报错");
+        }
+        resourcesMap.put("/favicon.ico", ico);
     }
 
     public void bind(int port) throws IOException {
@@ -101,6 +109,9 @@ public class NioEndPoint {
                     SocketEvent socketEvent = null;
                     try {
                         socketEvent = pooledObject.borrowObject();
+                        if (null == socketEvent.getPooledObject()) {
+                            socketEvent.setPooledObject(pooledObject);
+                        }
                     } catch (InterruptedException ie) {
                         ie.printStackTrace();
                         // TODO 如果并发太大被中断返回繁忙页面
@@ -125,7 +136,7 @@ public class NioEndPoint {
 
             while (true) {
                 try {
-                    System.out.println("准备开始选择可处理的selectKey - " + (new java.util.Date(System.currentTimeMillis())));
+//                    System.out.println("准备开始选择可处理的selectKey - " + (new java.util.Date(System.currentTimeMillis())));
                     if (selector.select(1) > 0) {
                         System.out.println("开始处理selectKey - " + (new java.util.Date(System.currentTimeMillis())));
                         Iterator<SelectionKey> it = selector.selectedKeys().iterator();
@@ -160,6 +171,7 @@ public class NioEndPoint {
                     == SelectionKey.OP_WRITE) {
                 try {
                     System.out.println("<------返回页面------>" + (new java.util.Date(System.currentTimeMillis())));
+
                     prepareResponse(socketEvent);
                     writeFile(socketEvent);
                     socketEvent.getResponse().getOutputStream().write(Constant.CRLF);
@@ -176,9 +188,6 @@ public class NioEndPoint {
         }
 
         private void writeFile(SocketEvent socketEvent) throws IOException {
-            if (null != socketEvent.getBoundary()) {
-                return;
-            }
             HttpResponse response = socketEvent.getResponse();
 
             byte[] b = new byte[8 * 1024];
@@ -210,18 +219,18 @@ public class NioEndPoint {
 
         private void prepareResponse(SocketEvent socketEvent) throws IOException {
             HttpResponse response = socketEvent.getResponse();
-            if (null != socketEvent.getBoundary()) {
-                return;
-            }
             String url = socketEvent.getRequest().getRequestUri();
             Path path = Paths.get(BootStrap.root+url.replace('/', File.separatorChar));
             socketEvent.setPath(path);
             long contentLength = 0;
+            System.out.println("url -> " + url);
             if (Files.exists(path)){
                 response.setHttpStatus(HttpStatus.OK);
                 contentLength = path.toFile().length();
-            } else if(null!=url&&url.startsWith(Constant.DEFAULT_PATH)){
+            } else if(null!=url && (url.startsWith(Constant.DEFAULT_PATH)) ||
+                                    null!=resourcesMap.get(url)){
                 String resourcesUrl = getResourcesUrl(url);
+                System.out.println("资源路径 -> " + resourcesUrl);
                 if (null != resourcesUrl) {
                     response.setHttpStatus(HttpStatus.RESOURCES);
                     contentLength = resourcesMap.get(resourcesUrl).length;
@@ -233,11 +242,14 @@ public class NioEndPoint {
                 contentLength = page404.length;
                 socketEvent.setBadResponse(HttpStatus.NotFound, "请求资源不存在");
             }
+
             preparedResponseLine(response, contentLength);
+
         }
 
         private void preparedResponseLine(HttpResponse response, long ContentLength) throws IOException {
-            response.getOutputStream().write("HTTP/1.1 ".getBytes());
+            response.getOutputStream().write("HTTP/1.1".getBytes());
+            response.getOutputStream().write(Constant.SP);
             response.getOutputStream().write(response.getHttpStatus().getStatCode());
             response.getOutputStream().write(Constant.SP);
             response.getOutputStream().write(response.getHttpStatus().name().getBytes());
@@ -304,8 +316,9 @@ public class NioEndPoint {
 
             String header = request.getHeaders().get("Content-Type");
             if (null != header && header.indexOf("multipart/form-data") > -1) {
-
+                System.out.println("<------开始解析multipart/form-data------>" + (new java.util.Date(System.currentTimeMillis())));
                 parseMultipartData(request, socketEvent, header);
+                System.out.println("<------完成解析multipart/form-data------>" + (new java.util.Date(System.currentTimeMillis())));
             }
         }
 
