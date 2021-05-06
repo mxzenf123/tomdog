@@ -1,5 +1,8 @@
 package org.yangxin.until;
 
+/**
+ * kmp字符串匹配
+ */
 public class KMPAlgorithm {
 
     public static int kmpSearch(byte[] bytes, String str2, int[] next){
