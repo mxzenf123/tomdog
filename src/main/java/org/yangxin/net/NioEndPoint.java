@@ -331,7 +331,6 @@ public class NioEndPoint {
                 //有multipart头，但是没有bondary？
                 if (null!=strs[i] && strs[i].trim().startsWith("boundary")) {
                     boundary = strs[i].split("=")[1].trim().replaceAll("\"","");
-                    socketEvent.setBoundary(boundary);
                     boundaryLen = boundary.length();
                     next = KMPAlgorithm.kmpNext(boundary);
                 }
