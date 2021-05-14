@@ -1,21 +1,12 @@
 package org.yangxin.net;
 
-import org.yangxin.BootStrap;
-import org.yangxin.http.Constant;
 import org.yangxin.http.HttpRequest;
 import org.yangxin.http.HttpResponse;
 import org.yangxin.http.HttpStatus;
 import org.yangxin.pool.PooledObject;
-import org.yangxin.until.ByteUtils;
-
-import java.io.File;
-import java.io.IOException;
-import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 
 /**
  * @author yangxin
